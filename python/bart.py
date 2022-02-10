@@ -10,6 +10,7 @@ import subprocess as sp
 import tempfile as tmp
 import cfl
 import os
+import subprocess
 from wslsupport import PathCorrection
 
 def bart(nargout, cmd, *args):
@@ -54,14 +55,23 @@ def bart(nargout, cmd, *args):
             #For WSL and modify paths
             cmdWSL = PathCorrection(cmd)
             in_strWSL = PathCorrection(in_str)
-            out_strWSL =  PathCorrection(out_str)	
-            ERR = os.system('wsl bart ' + cmdWSL + ' ' + in_strWSL + ' ' + out_strWSL)
+            out_strWSL =  PathCorrection(out_str)
+            shell_cmd = 'wsl bart ' + cmdWSL + ' ' + in_strWSL + ' ' + out_strWSL
         else:
             #For cygwin use bash and modify paths
-            ERR = os.system('bash.exe --login -c ' + bart_path + '"/bart ' + cmd.replace(os.path.sep, '/') + ' ' + in_str.replace(os.path.sep, '/') + ' ' + out_str.replace(os.path.sep, '/') + '"')
+            shell_cmd = 'bash.exe --login -c ' + bart_path + '"/bart ' + cmd.replace(os.path.sep, '/') + ' ' + in_str.replace(os.path.sep, '/') + ' ' + out_str.replace(os.path.sep, '/') + '"'
             #TODO: Test with cygwin, this is just translation from matlab code
     else:
-        ERR = os.system(bart_path + '/bart ' + cmd + ' ' + in_str + ' ' + out_str)
+        shell_cmd = bart_path + '/bart ' + cmd + ' ' + in_str + ' ' + out_str
+
+    try:
+        ERR = 0
+        cmd_output = subprocess.check_output(shell_cmd, stderr=subprocess.STDOUT, shell=True)
+        bart.stdout = cmd_output.decode("utf-8")  # store stdout in function attribute to make it loggable
+        print(bart.stdout)
+    except subprocess.CalledProcessError as error:
+        ERR = error.returncode
+        print('Command exited with an error (error code:', ERR, ')\nError stdout: ', error.output.decode("utf-8"))
 
     for elm in infiles:
         if os.path.isfile(elm + '.cfl'):
@@ -78,9 +88,6 @@ def bart(nargout, cmd, *args):
             os.remove(elm + '.cfl')
         if os.path.isfile(elm + '.hdr'):
             os.remove(elm + '.hdr')
-
-    if ERR:
-        raise Exception("Command exited with an error.")
 
     if nargout == 1:
         output = output[0]
