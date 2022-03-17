@@ -224,14 +224,14 @@ MODULES_moba = -lmoba -lnoir -lnlops -llinops -lwavelet -lnoncart -lsimu -lgreco
 MODULES_mobafit = -lmoba -lnlops -llinops -lsimu -liter
 MODULES_bpsense = -lsense -lnoncart -liter -llinops -lwavelet
 MODULES_itsense = -liter -llinops
-MODULES_ecalib = -lcalib
-MODULES_ecaltwo = -lcalib
+MODULES_ecalib = -lcalib -llinops
+MODULES_ecaltwo = -lcalib -llinops
 MODULES_estdelay = -lcalib
 MODULES_caldir = -lcalib
 MODULES_walsh = -lcalib
 MODULES_calmat = -lcalib
-MODULES_cc = -lcalib
-MODULES_ccapply = -lcalib
+MODULES_cc = -lcalib -llinops
+MODULES_ccapply = -lcalib -llinops
 MODULES_estvar = -lcalib
 MODULES_nufft = -lnoncart -liter -llinops
 MODULES_rof = -liter -llinops
@@ -281,6 +281,7 @@ LINKER ?= $(CC)
 
 
 ifeq ($(ISMRMRD),1)
+
 TMRI += ismrmrd
 MODULES_bart += -lismrm
 endif
@@ -506,6 +507,7 @@ MATLAB_L := -Wl,-rpath $(MATLAB_BASE)/bin/glnxa64 -L$(MATLAB_BASE)/bin/glnxa64 -
 ifeq ($(ISMRMRD),1)
 ISMRM_H := -I$(ISMRM_BASE)/include
 ISMRM_L := -L$(ISMRM_BASE)/lib -lismrmrd
+ISMRM_H += -I /usr/include/hdf5/serial/
 else
 ISMRM_H :=
 ISMRM_L :=
@@ -522,6 +524,13 @@ endif
 ifeq ($(LOG_ORCHESTRA_BACKEND),1)
 miscextracxxsrcs += $(srcdir)/misc/Orchestra.cc
 endif
+endif
+
+
+ifeq ($(ISMRMRD),1)
+miscextracxxsrcs += $(srcdir)/ismrm/xml_wrapper.cc
+CPPFLAGS += $(ISMRM_H)
+LIBS += -lstdc++
 endif
 
 
