@@ -10,22 +10,21 @@ import subprocess as sp
 import tempfile as tmp
 import cfl
 import os
-import subprocess
 from wslsupport import PathCorrection
 
 def bart(nargout, cmd, *args):
 
     if type(nargout) != int or nargout < 0:
-        print("Usage: bart(<nargout>, <command>, <arguements...>)")
+        print("Usage: bart(<nargout>, <command>, <arguments...>)")
         return None
 
     try:
-        bart_path = os.environ['TOOLBOX_PATH'] + '/bart '
+        bart_path = os.environ['TOOLBOX_PATH']
     except:
         bart_path = None
     isWSL = False
 
-    if not bart_path:
+    if bart_path is None:
         if os.path.isfile('/usr/local/bin/bart'):
             bart_path = '/usr/local/bin'
         elif os.path.isfile('/usr/bin/bart'):
@@ -42,36 +41,33 @@ def bart(nargout, cmd, *args):
 
     nargin = len(args)
     infiles = [name + 'in' + str(idx) for idx in range(nargin)]
-    in_str = ' '.join(infiles)
 
     for idx in range(nargin):
         cfl.writecfl(infiles[idx], args[idx])
 
     outfiles = [name + 'out' + str(idx) for idx in range(nargout)]
-    out_str = ' '.join(outfiles)
+
+    cmd = cmd.split(" ")
 
     if os.name =='nt':
         if isWSL:
             #For WSL and modify paths
-            cmdWSL = PathCorrection(cmd)
-            in_strWSL = PathCorrection(in_str)
-            out_strWSL =  PathCorrection(out_str)
-            shell_cmd = 'wsl bart ' + cmdWSL + ' ' + in_strWSL + ' ' + out_strWSL
+            infiles = [PathCorrection(item) for item in infiles]
+            outfiles = [PathCorrection(item) for item in outfiles]
+            cmd = [PathCorrection(item) for item in cmd]
+            shell_cmd = ['wsl', 'bart', *cmd, *infiles, *outfiles]
         else:
             #For cygwin use bash and modify paths
-            shell_cmd = 'bash.exe --login -c ' + bart_path + '"/bart ' + cmd.replace(os.path.sep, '/') + ' ' + in_str.replace(os.path.sep, '/') + ' ' + out_str.replace(os.path.sep, '/') + '"'
+            infiles = [item.replace(os.path.sep, '/') for item in infiles]
+            outfiles = [item.replace(os.path.sep, '/') for item in outfiles]
+            cmd = [item.replace(os.path.sep, '/') for item in cmd]
+            shell_cmd = ['bash.exe', '--login',  '-c', os.path.join(bart_path, 'bart'), *cmd, *infiles, *outfiles]
             #TODO: Test with cygwin, this is just translation from matlab code
     else:
-        shell_cmd = bart_path + '/bart ' + cmd + ' ' + in_str + ' ' + out_str
+        shell_cmd = [os.path.join(bart_path, 'bart'), *cmd, *infiles, *outfiles]
 
-    try:
-        ERR = 0
-        cmd_output = subprocess.check_output(shell_cmd, stderr=subprocess.STDOUT, shell=True)
-        bart.stdout = cmd_output.decode("utf-8")  # store stdout in function attribute to make it loggable
-        print(bart.stdout)
-    except subprocess.CalledProcessError as error:
-        ERR = error.returncode
-        print('Command exited with an error (error code:', ERR, ')\nError stdout: ', error.output.decode("utf-8"))
+    # run bart command and store errcode and stdout in function attributes
+    bart.ERR, bart.stdout, bart.stderr = execute_cmd(shell_cmd)
 
     for elm in infiles:
         if os.path.isfile(elm + '.cfl'):
@@ -82,14 +78,43 @@ def bart(nargout, cmd, *args):
     output = []
     for idx in range(nargout):
         elm = outfiles[idx]
-        if not ERR:
+        if not bart.ERR:
             output.append(cfl.readcfl(elm))
         if os.path.isfile(elm + '.cfl'):
             os.remove(elm + '.cfl')
         if os.path.isfile(elm + '.hdr'):
             os.remove(elm + '.hdr')
 
+    if bart.ERR:
+        raise Exception(f"Command exited with error code {bart.ERR}.")
+
     if nargout == 1:
         output = output[0]
 
     return output
+
+
+def execute_cmd(cmd):
+    """
+    Execute a command in a shell.
+    Print and catch the output.
+    """
+    
+    errcode = 0
+    stdout = ""
+    stderr = ""
+
+    proc = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True)
+
+    for stdout_line in iter(proc.stdout.readline, ""):
+        stdout += stdout_line
+        print(stdout_line, end="")
+    proc.stdout.close()
+
+    errcode = proc.wait()
+    if errcode:
+        stderr = "".join(proc.stderr.readlines())
+        print(stderr)
+    proc.stderr.close()
+
+    return errcode, stdout, stderr
