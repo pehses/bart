@@ -19,6 +19,7 @@ struct traj_conf {
 	_Bool d3d;
 	_Bool transverse;
 	_Bool asym_traj;
+	_Bool ute_traj;
 	_Bool mems_traj;
 	int accel;
 	int tiny_gold;

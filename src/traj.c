@@ -82,9 +82,10 @@ int main_traj(int argc, char* argv[argc])
 		OPT_FLOAT('R', &rot, "phi", "rotate"),
 		OPT_FLVEC3('q', &gdelays[0], "delays", "gradient delays: x, y, xy"),
 		OPT_FLVEC3('Q', &gdelays[1], "delays", "(gradient delays: z, xz, yz)"),
-		OPT_SET('O', &conf.transverse, "correct transverse gradient error for radial tajectories"),
+		OPT_SET('O', &conf.transverse, "correct transverse gradient error for radial trajectories"),
 		OPT_SET('3', &conf.d3d, "3D"),
 		OPT_SET('c', &conf.asym_traj, "asymmetric trajectory [DC sampled]"),
+		OPT_SET('u', &conf.ute_traj, "center-out radial trajectory (UTE)"),
 		OPT_SET('E', &conf.mems_traj, "multi-echo multi-spoke trajectory"),
 		OPT_VEC2('z', &z_usamp, "Ref:Acel", "Undersampling in z-direction."),
 		OPT_INFILE('C', &custom_angle_file, "file", "custom_angle file [phi + i * psi]"),
@@ -95,6 +96,15 @@ int main_traj(int argc, char* argv[argc])
 
 	num_init();
 
+	if (conf.ute_traj) {
+
+		// radial center-out trajectory ("UTE")
+		// select sensible options early so that conflicts can be found
+		conf.radial = true;
+		conf.full_circle = true;
+		conf.asym_traj = true;
+
+	}
 
 	// Load custom_angle
 	long sdims[DIMS];
@@ -243,7 +253,7 @@ int main_traj(int argc, char* argv[argc])
 			if (conf.mems_traj && (1 == e % 2))
 			       sample =	D - i;
 
-			double read = (float)sample + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
+			double read = (float)sample + (conf.asym_traj ? 0 : 0.5) - (conf.ute_traj ? 0. : (float)D / 2.);
 
 
 			if (conf.golden_partition)
